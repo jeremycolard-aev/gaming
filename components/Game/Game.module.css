@@ -1,0 +1,108 @@
+.wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+.canvas {
+  display: block;
+  border: 1px solid rgba(200, 169, 110, 0.25);
+  image-rendering: pixelated;
+  background: #000;
+  max-width: 100vw;
+  max-height: calc(100vh - 80px);
+}
+
+/* ── Overlay ─────────────────────────────────────────────────────────── */
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(3px);
+}
+
+.overlayInner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.2rem;
+  padding: 2rem 2.5rem;
+  border: 1px solid rgba(200, 169, 110, 0.3);
+  border-radius: 6px;
+  background: rgba(10, 8, 4, 0.9);
+  max-width: 360px;
+  text-align: center;
+}
+
+.title {
+  font-size: 2rem;
+  letter-spacing: 0.2em;
+  color: var(--color-primary);
+  text-shadow: 0 0 24px rgba(200, 169, 110, 0.5);
+}
+
+.subtitle {
+  font-size: 0.95rem;
+  color: var(--color-text);
+  line-height: 1.7;
+  opacity: 0.85;
+}
+
+.dim {
+  font-size: 0.8rem;
+  color: var(--color-text-dim);
+  letter-spacing: 0.06em;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--color-text-dim);
+  border-top: 1px solid rgba(200,169,110,0.15);
+  border-bottom: 1px solid rgba(200,169,110,0.15);
+  padding: 0.8rem 0;
+  width: 100%;
+}
+
+/* ── Mobile D-pad ────────────────────────────────────────────────────── */
+.mobileControls {
+  display: none;
+  flex-direction: row;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  margin-top: 6px;
+}
+
+@media (max-width: 860px) {
+  .mobileControls {
+    display: flex;
+  }
+}
+
+.dpad {
+  width: 56px;
+  height: 56px;
+  font-size: 1.4rem;
+  border-radius: 50%;
+  border: 2px solid var(--color-primary);
+  color: var(--color-primary);
+  background: rgba(0,0,0,0.7);
+  touch-action: none;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.jumpBtn {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
