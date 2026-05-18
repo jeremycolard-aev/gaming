@@ -134,6 +134,7 @@ export default function Game() {
           <div className={styles.controls}>
             <span>← → / A D — Déplacer</span>
             <span>↑ / W / Espace — Sauter</span>
+            <span>E — Écholocalisation (révèle l&apos;environnement)</span>
             <span>Sauter sur les ennemis pour les éliminer</span>
           </div>
           <button onClick={startGame}>COMMENCER</button>

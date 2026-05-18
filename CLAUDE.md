@@ -44,6 +44,12 @@ The entire application is a single-page canvas game. Next.js is used only as a b
 
 A radial gradient on the dark overlay canvas erases a ~110px circle around the player. Sound wave rings (`SoundWave[]` in state) additionally punch through the darkness proportionally to their `alpha`, revealing entities beyond the vision radius when waves reach them.
 
+Four vision/sound mechanics are active:
+- **Wave differentiation**: each `SoundWave` has a `type` (`player` | `enemy` | `coin` | `echo` | `reflected`) that drives lineWidth, dash pattern, and darkness-punch strength independently.
+- **Active echolocation** (`E` key, 4 s cooldown): emits a large cyan wave (520px, speed 4.5) that strongly punches through darkness and triggers platform reflections. Cooldown shown as a circular progress indicator bottom-left.
+- **Wall reflections**: every frame, non-reflected waves (`depth === 0`) check nearby solid platforms via `closestPointOnRect()`; when the ring radius crosses the platform surface, a smaller `reflected` child wave spawns there (`depth = 1`, no further reflections, max 80 total waves).
+- **Directional alerts**: enemies within 380px but outside the vision circle draw a pulsing red arc + arrowhead on the vision circle perimeter, pointing toward them. Intensity fades with distance.
+
 ### Player model & animation
 
 The player is drawn as a stick-figure human in `renderer.ts → drawHumanPlayer()`. Key elements:

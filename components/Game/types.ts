@@ -1,24 +1,11 @@
 import type { AudioEvent } from './audio'
 
-export interface Vec2 {
-  x: number
-  y: number
-}
-
-export interface Rect {
-  x: number
-  y: number
-  w: number
-  h: number
-}
+export interface Vec2 { x: number; y: number }
+export interface Rect  { x: number; y: number; w: number; h: number }
 
 export interface Player {
-  x: number
-  y: number
-  w: number
-  h: number
-  vx: number
-  vy: number
+  x: number; y: number; w: number; h: number
+  vx: number; vy: number
   onGround: boolean
   facing: 1 | -1
   dead: boolean
@@ -27,18 +14,12 @@ export interface Player {
 }
 
 export interface Platform {
-  x: number
-  y: number
-  w: number
-  h: number
+  x: number; y: number; w: number; h: number
   type: 'solid' | 'deadly'
 }
 
 export interface Enemy {
-  x: number
-  y: number
-  w: number
-  h: number
+  x: number; y: number; w: number; h: number
   vx: number
   startX: number
   patrolRange: number
@@ -48,34 +29,27 @@ export interface Enemy {
 }
 
 export interface Coin {
-  x: number
-  y: number
-  r: number
+  x: number; y: number; r: number
   collected: boolean
   waveTimer: number
 }
 
-export interface Exit {
-  x: number
-  y: number
-  w: number
-  h: number
-}
+export interface Exit { x: number; y: number; w: number; h: number }
+
+export type WaveType = 'player' | 'enemy' | 'coin' | 'echo' | 'reflected'
 
 export interface SoundWave {
-  x: number
-  y: number
+  x: number; y: number
   radius: number
   maxRadius: number
   alpha: number
   color: string
   speed: number
+  type: WaveType
+  depth: number  // 0 = original, 1 = reflected (no further reflection)
 }
 
-export interface Camera {
-  x: number
-  y: number
-}
+export interface Camera { x: number; y: number }
 
 export type GamePhase = 'menu' | 'playing' | 'dead' | 'levelComplete' | 'victory'
 
@@ -96,4 +70,5 @@ export interface GameState {
   deathTimer: number
   levelTimer: number
   audioEvents: AudioEvent[]
+  echoCooldown: number  // frames remaining before echo is available again
 }
