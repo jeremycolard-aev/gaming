@@ -1,12 +1,12 @@
-import type { GameState, Player, Platform, Enemy, SoundWave } from './types'
+import type { GameState, Player, Platform } from './types'
 import { LEVELS } from './levels'
 
-const GRAVITY = 0.55
+const GRAVITY    = 0.55
 const JUMP_FORCE = -13
 const MOVE_SPEED = 4.2
-const FRICTION = 0.82
+const FRICTION   = 0.82
 const VISION_RADIUS = 110
-const CAM_LERP = 0.12
+const CAM_LERP   = 0.12
 
 export function buildInitialState(level: number, lives: number): GameState {
   const lvl = LEVELS[level]
@@ -25,16 +25,18 @@ export function buildInitialState(level: number, lives: number): GameState {
       facing: 1,
       dead: false,
       respawnTimer: 0,
+      animFrame: 0,
     },
     platforms: lvl.platforms.map(p => ({ ...p })),
-    enemies: lvl.enemies.map(e => ({ ...e })),
+    enemies:   lvl.enemies.map(e => ({ ...e })),
     coinItems: lvl.coins.map(c => ({ ...c })),
-    exit: { ...lvl.exit },
+    exit:      { ...lvl.exit },
     waves: [],
     camera: { x: lvl.playerStart.x - 400, y: 0 },
     playerWaveTimer: 0,
     deathTimer: 0,
     levelTimer: 0,
+    audioEvents: [],
   }
 }
 
@@ -48,9 +50,7 @@ function rectOverlap(
 function resolvePlatformCollision(p: Player, plat: Platform): void {
   const overlapX = Math.min(p.x + p.w, plat.x + plat.w) - Math.max(p.x, plat.x)
   const overlapY = Math.min(p.y + p.h, plat.y + plat.h) - Math.max(p.y, plat.y)
-
   if (overlapX <= 0 || overlapY <= 0) return
-
   if (overlapX < overlapY) {
     p.x += p.x < plat.x ? -overlapX : overlapX
     p.vx = 0
@@ -85,12 +85,13 @@ export function stepGame(
   if (state.phase !== 'playing') return state
 
   const s = deepClone(state)
+  s.audioEvents = []
   const p = s.player
   const lvl = LEVELS[s.level]
 
   s.levelTimer++
 
-  // ── Player input ────────────────────────────────────────────────────────
+  // ── Input ────────────────────────────────────────────────────────────────
   const left  = keys.has('ArrowLeft')  || keys.has('KeyA')
   const right = keys.has('ArrowRight') || keys.has('KeyD')
   const jump  = keys.has('ArrowUp')    || keys.has('KeyW') || keys.has('Space')
@@ -98,41 +99,52 @@ export function stepGame(
   if (left)  { p.vx -= MOVE_SPEED * 0.35; p.facing = -1 }
   if (right) { p.vx += MOVE_SPEED * 0.35; p.facing =  1 }
   if (!left && !right) p.vx *= FRICTION
-
   p.vx = Math.max(-MOVE_SPEED, Math.min(MOVE_SPEED, p.vx))
+
+  const wasOnGround = p.onGround
 
   if (jump && p.onGround) {
     p.vy = JUMP_FORCE
     p.onGround = false
+    s.audioEvents.push('jump')
     spawnWave(s, p.x + p.w / 2, p.y + p.h, 'rgba(200,169,110,0.5)', 80, 2.5)
   }
 
-  // ── Physics ─────────────────────────────────────────────────────────────
+  // ── Physics ──────────────────────────────────────────────────────────────
   p.vy += GRAVITY
-  p.vy = Math.min(p.vy, 20)
-  p.x += p.vx
-  p.y += p.vy
-
-  p.x = Math.max(0, Math.min(p.x, lvl.worldWidth - p.w))
-
+  p.vy  = Math.min(p.vy, 20)
+  p.x  += p.vx
+  p.y  += p.vy
+  p.x   = Math.max(0, Math.min(p.x, lvl.worldWidth - p.w))
   p.onGround = false
 
   for (const plat of s.platforms) {
     if (!rectOverlap(p.x, p.y, p.w, p.h, plat.x, plat.y, plat.w, plat.h)) continue
-    if (plat.type === 'deadly') {
-      p.dead = true
-      break
-    }
+    if (plat.type === 'deadly') { p.dead = true; break }
     resolvePlatformCollision(p, plat)
   }
 
-  // ── Fall off bottom ──────────────────────────────────────────────────────
   if (p.y > lvl.worldHeight + 100) p.dead = true
 
-  // ── Enemy stepping and waves ─────────────────────────────────────────────
+  // Landing sound
+  if (!wasOnGround && p.onGround) s.audioEvents.push('land')
+
+  // ── Animation frame ──────────────────────────────────────────────────────
+  if (p.onGround && Math.abs(p.vx) > 0.8) {
+    p.animFrame++
+  }
+
+  // ── Footstep sound every half walk cycle ─────────────────────────────────
+  s.playerWaveTimer++
+  if (s.playerWaveTimer >= 38 && p.onGround && Math.abs(p.vx) > 0.5) {
+    s.playerWaveTimer = 0
+    spawnWave(s, p.x + p.w / 2, p.y + p.h, 'rgba(200,169,110,0.3)', 60, 1.5)
+    s.audioEvents.push('footstep')
+  }
+
+  // ── Enemies ──────────────────────────────────────────────────────────────
   for (const e of s.enemies) {
     if (!e.alive) continue
-
     e.x += e.vx
     if (e.x < e.startX || e.x > e.startX + e.patrolRange) e.vx *= -1
 
@@ -142,15 +154,12 @@ export function stepGame(
       spawnWave(s, e.x + e.w / 2, e.y + e.h / 2, 'rgba(200,80,80,0.65)', 180, 1.6)
     }
 
-    // Stomp on enemy
     const stompY = p.y + p.h
     const prevY  = stompY - p.vy
-    if (
-      p.vy > 0 && prevY <= e.y &&
-      rectOverlap(p.x, p.y, p.w, p.h, e.x, e.y, e.w, e.h)
-    ) {
+    if (p.vy > 0 && prevY <= e.y && rectOverlap(p.x, p.y, p.w, p.h, e.x, e.y, e.w, e.h)) {
       e.alive = false
       p.vy = JUMP_FORCE * 0.6
+      s.audioEvents.push('stomp')
       spawnWave(s, e.x + e.w / 2, e.y + e.h / 2, 'rgba(255,200,80,0.8)', 120, 3)
     } else if (rectOverlap(p.x, p.y, p.w, p.h, e.x, e.y, e.w, e.h)) {
       p.dead = true
@@ -170,6 +179,7 @@ export function stepGame(
     if (Math.sqrt(dx * dx + dy * dy) < p.w / 2 + c.r) {
       c.collected = true
       s.coins++
+      s.audioEvents.push('coin')
       spawnWave(s, c.x, c.y, 'rgba(80,200,128,0.9)', 60, 3)
     }
   }
@@ -178,16 +188,10 @@ export function stepGame(
   const ex = s.exit
   if (rectOverlap(p.x, p.y, p.w, p.h, ex.x, ex.y, ex.w, ex.h)) {
     s.phase = s.level < LEVELS.length - 1 ? 'levelComplete' : 'victory'
+    s.audioEvents.push('levelComplete')
   }
 
-  // ── Player wave (footstep every ~40 frames when moving) ──────────────────
-  s.playerWaveTimer++
-  if (s.playerWaveTimer >= 40 && (Math.abs(p.vx) > 0.5) && p.onGround) {
-    s.playerWaveTimer = 0
-    spawnWave(s, p.x + p.w / 2, p.y + p.h, 'rgba(200,169,110,0.3)', 60, 1.5)
-  }
-
-  // ── Sound waves update ───────────────────────────────────────────────────
+  // ── Waves update ─────────────────────────────────────────────────────────
   s.waves = s.waves.filter(w => w.alpha > 0.01)
   for (const w of s.waves) {
     w.radius += w.speed
@@ -195,16 +199,17 @@ export function stepGame(
     if (w.radius >= w.maxRadius) w.alpha = 0
   }
 
-  // ── Camera follows player ────────────────────────────────────────────────
-  const targetCamX = p.x - canvasW / 2 + p.w / 2
-  const targetCamY = p.y - canvasH / 2 + p.h / 2
-  s.camera.x += (targetCamX - s.camera.x) * CAM_LERP
-  s.camera.y += (targetCamY - s.camera.y) * CAM_LERP
-  s.camera.x = Math.max(0, Math.min(s.camera.x, lvl.worldWidth  - canvasW))
-  s.camera.y = Math.max(0, Math.min(s.camera.y, lvl.worldHeight - canvasH))
+  // ── Camera ───────────────────────────────────────────────────────────────
+  const tcx = p.x - canvasW / 2 + p.w / 2
+  const tcy = p.y - canvasH / 2 + p.h / 2
+  s.camera.x += (tcx - s.camera.x) * CAM_LERP
+  s.camera.y += (tcy - s.camera.y) * CAM_LERP
+  s.camera.x  = Math.max(0, Math.min(s.camera.x, lvl.worldWidth  - canvasW))
+  s.camera.y  = Math.max(0, Math.min(s.camera.y, lvl.worldHeight - canvasH))
 
-  // ── Death handling ───────────────────────────────────────────────────────
+  // ── Death ────────────────────────────────────────────────────────────────
   if (p.dead) {
+    if (s.deathTimer === 0) s.audioEvents.push('death')
     s.deathTimer++
     if (s.deathTimer > 80) {
       const newLives = s.lives - 1
@@ -220,17 +225,17 @@ export function stepGame(
   return s
 }
 
-// Minimal deep clone for game state (avoids JSON overhead for known shape)
 function deepClone(s: GameState): GameState {
   return {
     ...s,
     player:    { ...s.player },
-    platforms: s.platforms,  // immutable per level
+    platforms: s.platforms,
     enemies:   s.enemies.map(e => ({ ...e })),
     coinItems: s.coinItems.map(c => ({ ...c })),
     exit:      s.exit,
     waves:     s.waves.map(w => ({ ...w })),
     camera:    { ...s.camera },
+    audioEvents: [],
   }
 }
 

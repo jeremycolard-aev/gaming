@@ -1,3 +1,5 @@
+import type { AudioEvent } from './audio'
+
 export interface Vec2 {
   x: number
   y: number
@@ -21,6 +23,7 @@ export interface Player {
   facing: 1 | -1
   dead: boolean
   respawnTimer: number
+  animFrame: number
 }
 
 export interface Platform {
@@ -92,4 +95,5 @@ export interface GameState {
   playerWaveTimer: number
   deathTimer: number
   levelTimer: number
+  audioEvents: AudioEvent[]
 }

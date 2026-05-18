@@ -4,17 +4,20 @@ import { useEffect, useRef, useCallback, useState } from 'react'
 import type { GameState, GamePhase } from './types'
 import { buildInitialState, stepGame } from './gameLogic'
 import { render } from './renderer'
+import { initAudio, resumeAudio, playMusic, stopMusic, playSfx } from './audio'
 import styles from './Game.module.css'
 
-const CANVAS_W = 800
-const CANVAS_H = 560
+const CANVAS_W     = 800
+const CANVAS_H     = 560
 const INITIAL_LIVES = 3
 
 export default function Game() {
-  const canvasRef   = useRef<HTMLCanvasElement>(null)
-  const stateRef    = useRef<GameState>(buildInitialState(0, INITIAL_LIVES))
-  const keysRef     = useRef<Set<string>>(new Set())
-  const rafRef      = useRef<number>(0)
+  const canvasRef  = useRef<HTMLCanvasElement>(null)
+  const stateRef   = useRef<GameState>(buildInitialState(0, INITIAL_LIVES))
+  const keysRef    = useRef<Set<string>>(new Set())
+  const rafRef     = useRef<number>(0)
+  const audioReady = useRef(false)
+
   const [phase, setPhase]     = useState<GamePhase>('menu')
   const [level, setLevel]     = useState(0)
   const [lives, setLives]     = useState(INITIAL_LIVES)
@@ -29,13 +32,18 @@ export default function Game() {
   }, [])
 
   const startGame = useCallback(() => {
+    if (!audioReady.current) {
+      initAudio()
+      audioReady.current = true
+    }
+    resumeAudio()
+    playMusic()
     startLevel(0, INITIAL_LIVES)
   }, [startLevel])
 
   // Game loop
   useEffect(() => {
     if (phase !== 'playing') return
-
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
@@ -52,8 +60,10 @@ export default function Game() {
         CANVAS_W,
         CANVAS_H,
       )
-
       const s = stateRef.current
+
+      // Dispatch audio events
+      for (const ev of s.audioEvents) playSfx(ev)
 
       render(ctx, s, CANVAS_W, CANVAS_H)
 
@@ -62,6 +72,7 @@ export default function Game() {
         setLives(s.lives)
         setUiCoins(s.coins)
         setLevel(s.level)
+        if (s.phase === 'dead' || s.phase === 'victory') stopMusic()
         return
       }
 
@@ -83,6 +94,12 @@ export default function Game() {
       if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) {
         e.preventDefault()
       }
+      // Resume AudioContext on first key press
+      if (!audioReady.current) {
+        initAudio()
+        audioReady.current = true
+      }
+      resumeAudio()
     }
     const up = (e: KeyboardEvent) => keysRef.current.delete(e.code)
     window.addEventListener('keydown', down)
@@ -152,7 +169,6 @@ export default function Game() {
         </Overlay>
       )}
 
-      {/* Mobile controls */}
       <MobileControls keysRef={keysRef} />
     </div>
   )
@@ -167,29 +183,22 @@ function Overlay({ children }: { children: React.ReactNode }) {
 }
 
 function MobileControls({ keysRef }: { keysRef: React.MutableRefObject<Set<string>> }) {
-  const press = (code: string) => keysRef.current.add(code)
-  const release = (code: string) => keysRef.current.delete(code)
-
+  const press   = (c: string) => keysRef.current.add(c)
+  const release = (c: string) => keysRef.current.delete(c)
   return (
     <div className={styles.mobileControls}>
-      <button
-        className={styles.dpad}
+      <button className={styles.dpad}
         onPointerDown={() => press('ArrowLeft')}
         onPointerUp={() => release('ArrowLeft')}
-        onPointerLeave={() => release('ArrowLeft')}
-      >◀</button>
-      <button
-        className={`${styles.dpad} ${styles.jumpBtn}`}
+        onPointerLeave={() => release('ArrowLeft')}>◀</button>
+      <button className={`${styles.dpad} ${styles.jumpBtn}`}
         onPointerDown={() => press('Space')}
         onPointerUp={() => release('Space')}
-        onPointerLeave={() => release('Space')}
-      >▲</button>
-      <button
-        className={styles.dpad}
+        onPointerLeave={() => release('Space')}>▲</button>
+      <button className={styles.dpad}
         onPointerDown={() => press('ArrowRight')}
         onPointerUp={() => release('ArrowRight')}
-        onPointerLeave={() => release('ArrowRight')}
-      >▶</button>
+        onPointerLeave={() => release('ArrowRight')}>▶</button>
     </div>
   )
 }
